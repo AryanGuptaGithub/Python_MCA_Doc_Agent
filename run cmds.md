@@ -5,7 +5,7 @@
 This is the standard execution flow used by **Windows Task Scheduler**.
 
 ```powershell
-cd C:\Users\varun\Desktop\mca_agent
+cd C:\Users\aryan\Desktop\mca_agent
 
 venv\Scripts\activate
 
@@ -74,7 +74,7 @@ Update Manifest
 ## Step 1: Navigate to the Project
 
 ```powershell
-cd C:\Users\varun\Desktop\mca_agent
+cd C:\Users\aryan\Desktop\mca_agent
 ```
 
 ## Step 2: Activate the Virtual Environment
