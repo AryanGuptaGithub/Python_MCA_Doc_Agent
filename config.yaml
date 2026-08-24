@@ -1,0 +1,119 @@
+# =============================================================================
+# MCA Document Agent — Configuration
+# Edit this file to change behavior. No code changes needed for normal use.
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# PATHS
+# project_root is the ONE setting you change to move the whole project.
+# Everything else below is a path *relative to project_root*, unless you
+# type an absolute path (e.g. "D:/MCA_Data/raw") in which case it's used as-is.
+# ---------------------------------------------------------------------------
+paths:
+  project_root:
+    "." # "." = the folder this config.yaml lives in.
+    # Example (Windows): "C:/MCA_Agent"
+    # Example (another drive): "D:/Automation/MCA_Agent"
+  raw_dir: "data/raw" # temporary staging area for downloads
+  output_dir: "data/output" # final categorized folders land here
+  manifest_db: "data/manifest.sqlite3" # tracks what's already processed (dedup)
+  logs_dir: "logs"
+
+# ---------------------------------------------------------------------------
+# MCA SOURCE PAGES
+# Each entry is a page on mca.gov.in that lists downloadable PDFs.
+# The scraper visits each one and collects every PDF link + its row text.
+# If MCA changes their site layout, update urls here (code should not need
+# to change unless the page structure itself changes — see README).
+# ---------------------------------------------------------------------------
+mca:
+  # NOTE (verified against the live site, not assumed): every MCA page under
+  # this app renders the SAME site-wide document panel. acts-rules, ebooks,
+  # ebooks/notifications, notifications-tender/circulars, notices-circulars
+  # and whats-new were each scraped and all returned an identical link set.
+  # MCA's per-category tab component ("Notice & Circular" / "Circulars")
+  # shows "No results found." to an anonymous headless browser, so those tabs
+  # yield nothing extra. Listing one page is therefore enough; adding more
+  # only costs runtime (the scraper de-duplicates across pages, so extra
+  # entries here are harmless if you want to experiment).
+  pages:
+    - name: "mca_documents"
+      url: "https://www.mca.gov.in/content/mca/global/en/notifications-tender/notices-circulars.html"
+
+  # These pages are Adobe AEM + JS: a plain HTTP GET returns 403 (Akamai bot
+  # protection), so a real headless browser is required. See scraper.py.
+  page_load_wait_seconds: 25   # how long to wait for the document panel to appear
+  content_wait_selector: ".doc-link a"  # CSS selector the scraper waits for.
+                               # Tag-agnostic on purpose: MCA has served this
+                               # element as both <span class="doc-link"> and
+                               # <div class="doc-link">.
+  settle_seconds: 6            # extra pause after it appears — AEM's pagination JS
+                               # rewrites the list, and reading too early catches
+                               # a half-rendered panel
+
+# ---------------------------------------------------------------------------
+# RUN BEHAVIOR
+# ---------------------------------------------------------------------------
+run:
+  max_new_documents_per_run: 100 # hard cap — script stops downloading after this many NEW docs
+  http_timeout_seconds: 30
+  download_delay_seconds: 1.0 # politeness delay between downloads, be a good citizen on a .gov.in site
+  max_download_mb: 50 # refuse absurdly large files (downloads pass through the browser, see downloader.py)
+
+# ---------------------------------------------------------------------------
+# CATEGORIES
+# The classifier is constrained to return ONLY one of these labels — never
+# free text. This keeps the model's output from ever being used directly
+# as a filesystem path (see README > Security notes).
+# ---------------------------------------------------------------------------
+categories:
+  - Act
+  - Rules
+  - Notification
+  - Circular
+  - Order
+  - Amendment
+  - Other
+
+# ---------------------------------------------------------------------------
+# TEXT EXTRACTION (native first, OCR fallback)
+# ---------------------------------------------------------------------------
+extraction:
+  # If native extraction yields fewer than this many characters from the
+  # first few pages, the PDF is treated as scanned/image-based and sent to OCR.
+  min_native_chars_threshold: 60
+  max_pages_to_read: 5 # only need enough text to classify, not the whole doc
+  ocr:
+    enabled: true
+    # Full path to tesseract.exe. Leave blank to auto-detect: the code checks
+    # PATH and the standard Windows install locations, which is enough for a
+    # normal `winget install UB-Mannheim.TesseractOCR` (that installer does
+    # NOT add itself to PATH). Only set this for a non-standard location.
+    # Example: "C:/Program Files/Tesseract-OCR/tesseract.exe"
+    tesseract_cmd: ""
+    # NOTE: no poppler_path any more. Page rendering uses PyMuPDF, a
+    # self-contained pip wheel, so Tesseract is the only external program OCR
+    # needs. (pdf2image shelled out to Poppler, a second system install that
+    # is not on PATH by default on Windows — that was the original failure.)
+    ocr_max_pages: 3 # cap OCR to first N pages (slow, so keep small)
+    render_dpi: 300 # higher = better OCR accuracy but slower; 300 is the usual sweet spot
+    language: "eng" # Tesseract language pack(s), e.g. "eng" or "eng+hin"
+
+# ---------------------------------------------------------------------------
+# GEMINI (classification only — never used for OCR/extraction in this build)
+# ---------------------------------------------------------------------------
+gemini:
+  api_key_env_var: "GEMINI_API_KEY" # name of the env var holding your key (see .env.example)
+  model: "gemini-3.5-flash-lite" # free-tier model; change here if Google renames/retires it
+  # (gemini-2.5-flash-lite was retired and now returns 404 NOT_FOUND)
+  max_input_chars: 4000 # truncate extracted text before sending (saves tokens/quota)
+  requests_per_minute: 8 # stay safely under free-tier RPM; raise/lower if you hit 429s
+  max_retries: 5
+  retry_backoff_seconds: 15 # base backoff on 429 (exponential from here)
+
+# ---------------------------------------------------------------------------
+# SCRAPER (Selenium / headless Chrome)
+# ---------------------------------------------------------------------------
+scraper:
+  headless: true
+  chromedriver_path: "" # leave empty to auto-manage via webdriver-manager

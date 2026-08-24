@@ -1,0 +1,13 @@
+PyYAML>=6.0
+python-dotenv>=1.0
+# (no `requests`: mca.gov.in's Akamai protection rejects non-browser HTTP
+#  clients, so downloads run inside Selenium — see src/downloader.py)
+
+selenium>=4.20
+
+pdfplumber>=0.11
+PyMuPDF>=1.24     # renders PDF pages for OCR (replaces pdf2image, which needed Poppler)
+pytesseract>=0.3.10  # thin wrapper — the Tesseract PROGRAM must also be installed, see README
+Pillow>=10.3
+
+google-genai>=0.3.0
